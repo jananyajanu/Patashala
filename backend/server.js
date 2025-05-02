@@ -38,64 +38,58 @@ class createError extends Error {
 }
 
 // Signup Route
-app.post(
-  "https://patashala.onrender.com/api/auth/signup",
-  async (req, res, next) => {
-    try {
-      const { name, email, password, confirmPassword } = req.body;
+app.post("/api/auth/signup", async (req, res, next) => {
+  try {
+    const { name, email, password, confirmPassword } = req.body;
 
-      if (password !== confirmPassword) {
-        return next(new createError("Passwords do not match", 400));
-      }
-
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return next(new createError("User already exists", 400));
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 12);
-      const newUser = await User.create({
-        name,
-        email,
-        password: hashedPassword,
-      });
-
-      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRES_IN,
-      });
-
-      res
-        .status(201)
-        .json({ status: "success", message: "User registered", token });
-    } catch (error) {
-      next(error);
+    if (password !== confirmPassword) {
+      return next(new createError("Passwords do not match", 400));
     }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return next(new createError("User already exists", 400));
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const newUser = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+    });
+
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRES_IN,
+    });
+
+    res
+      .status(201)
+      .json({ status: "success", message: "User registered", token });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 // Signin Route
-app.post(
-  "https://patashala.onrender.com/api/auth/signin",
-  async (req, res, next) => {
-    try {
-      const { email, password } = req.body;
+app.post("/api/auth/signin", async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
 
-      const user = await User.findOne({ email });
-      if (!user) return next(new createError("User not found", 404));
+    const user = await User.findOne({ email });
+    if (!user) return next(new createError("User not found", 404));
 
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) return next(new createError("Invalid credentials", 401));
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return next(new createError("Invalid credentials", 401));
 
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRES_IN,
-      });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRES_IN,
+    });
 
-      res.status(200).json({ status: "success", message: "Logged in", token });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({ status: "success", message: "Logged in", token });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 // Auth Middleware
 const protect = async (req, res, next) => {
@@ -113,12 +107,12 @@ const protect = async (req, res, next) => {
 };
 
 // Get Logged-In User
-app.get("https://patashala.onrender.com/api/user/me", protect, (req, res) => {
+app.get("/api/user/me", protect, (req, res) => {
   res.status(200).json({ status: "success", data: { user: req.user } });
 });
 
 // Health check route
-app.get("https://patashala.onrender.com/api/test", (req, res) => {
+app.get("/api/test", (req, res) => {
   res.json({ message: "API is working!" });
 });
 
