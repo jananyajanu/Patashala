@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  fetch("/api/user/me", {
+  fetch("https://patashala.onrender.com/api/user/me", {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -28,11 +28,11 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error fetching user:", err);
       alert("Session expired or invalid token. Please sign in again.");
       localStorage.removeItem("token");
-      window.location.href = "/pages/sign.html";
+      window.location.href = "/index.html";
     });
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
     localStorage.removeItem("token");
-    window.location.href = "/pages/sign.html";
+    window.location.href = "/index.html";
   });
 });

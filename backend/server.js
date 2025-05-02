@@ -3,38 +3,31 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const cors = require("cors");
-const app = express();
 require("dotenv").config(); // for MongoDB URI
+
+const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Redirect root to sign-in page
-app.get("/", (req, res) => {
-  res.redirect("/pages/sign.html"); // assuming your sign-in page is at '/signin'
-});
-
-app.use(express.static("frontend")); // serve HTML/CSS/JS from public folder
 
 const PORT = process.env.PORT || 3000;
 
 // MongoDB connection
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log(err));
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.log("❌ MongoDB connection error:", err));
 
-// User Model
+// User Schema & Model
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
 });
-
 const User = mongoose.model("User", userSchema);
 
-// Utility for error handling
+// Error Utility
 class createError extends Error {
   constructor(message, statusCode) {
     super(message);
@@ -44,117 +37,74 @@ class createError extends Error {
   }
 }
 
-// Sign-Up Controller
-const signup = async (req, res, next) => {
-  try {
-    const { name, email, password, confirmPassword } = req.body;
-
-    // Check if passwords match
-    if (password !== confirmPassword) {
-      return next(new createError("Passwords do not match", 400));
-    }
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return next(new createError("User already exists", 400));
-    }
-
-    // Hash password
-    let hashedPassword;
+// Signup Route
+app.post(
+  "https://patashala.onrender.com/api/auth/signup",
+  async (req, res, next) => {
     try {
-      hashedPassword = await bcrypt.hash(password, 12);
-      // console.log("Password hashed successfully");
-    } catch (hashError) {
-      console.error("Error hashing password:", hashError);
-      return next(new createError("Error hashing password", 500));
-    }
+      const { name, email, password, confirmPassword } = req.body;
 
-    // Create new user
-    let newUser;
-    try {
-      newUser = await User.create({
+      if (password !== confirmPassword) {
+        return next(new createError("Passwords do not match", 400));
+      }
+
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return next(new createError("User already exists", 400));
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+      const newUser = await User.create({
         name,
         email,
         password: hashedPassword,
       });
-      // console.log("User created successfully");
-    } catch (createUserError) {
-      console.error("Error creating user:", createUserError);
-      return next(new createError("Error creating user", 500));
-    }
 
-    // Assign JWT token
-    let token;
-    try {
-      token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
+      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRES_IN,
       });
-      // console.log("JWT token generated successfully");
-    } catch (jwtError) {
-      // console.error("Error generating JWT:", jwtError);
-      return next(new createError("Error generating JWT", 500));
-    }
 
-    // Send response
-    res.status(201).json({
-      status: "success",
-      message: "User registered successfully",
-      token,
-    });
-  } catch (error) {
-    // console.error("Error during signup:", error);
-    next(error);
+      res
+        .status(201)
+        .json({ status: "success", message: "User registered", token });
+    } catch (error) {
+      next(error);
+    }
   }
-};
+);
 
-// Sign-In Controller
-const signin = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-    console.log("Received signin data:", req.body);
+// Signin Route
+app.post(
+  "https://patashala.onrender.com/api/auth/signin",
+  async (req, res, next) => {
+    try {
+      const { email, password } = req.body;
 
-    // 1. Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) {
-      return next(new createError("User not found", 404));
+      const user = await User.findOne({ email });
+      if (!user) return next(new createError("User not found", 404));
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) return next(new createError("Invalid credentials", 401));
+
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_EXPIRES_IN,
+      });
+
+      res.status(200).json({ status: "success", message: "Logged in", token });
+    } catch (error) {
+      next(error);
     }
-
-    // 2. Check password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return next(new createError("Invalid email or password", 401));
-    }
-
-    // 3. Generate JWT
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN,
-    });
-
-    // 4. Send response
-    res.status(200).json({
-      status: "success",
-      message: "Logged in successfully",
-      token,
-    });
-  } catch (error) {
-    console.error("Error during signin:", error);
-    next(error);
   }
-};
+);
 
-// Routes
-app.post("/api/auth/pages/signup", signup);
-app.post("/api/auth/pages/signin", signin);
-
-// Middleware to protect route and extract user
+// Auth Middleware
 const protect = async (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1]; // "Bearer <token>"
+  const token = req.headers.authorization?.split(" ")[1];
   if (!token) return next(new createError("Not authenticated", 401));
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select("-password"); // exclude password
+    req.user = await User.findById(decoded.id).select("-password");
     if (!req.user) return next(new createError("User not found", 404));
     next();
   } catch (err) {
@@ -162,31 +112,23 @@ const protect = async (req, res, next) => {
   }
 };
 
-// Get current logged-in user info
-app.get("/api/user/me", protect, (req, res) => {
-  res.status(200).json({
-    status: "success",
-    data: {
-      user: req.user,
-    },
-  });
+// Get Logged-In User
+app.get("https://patashala.onrender.com/api/user/me", protect, (req, res) => {
+  res.status(200).json({ status: "success", data: { user: req.user } });
 });
 
-// Global Error Handler
-app.use((err, req, res, next) => {
-  err.statusCode = err.statusCode || 500;
-  err.status = err.status || "error";
+// Health check route
+app.get("https://patashala.onrender.com/api/test", (req, res) => {
+  res.json({ message: "API is working!" });
+});
 
-  res.status(err.statusCode).json({
-    status: err.status,
+// Global error handler
+app.use((err, req, res, next) => {
+  res.status(err.statusCode || 500).json({
+    status: err.status || "error",
     message: err.message,
   });
 });
 
-// Example route
-app.get("/api/test", (req, res) => {
-  res.json({ message: "API is working!" });
-});
-
 // Start server
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
