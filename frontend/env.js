@@ -1,0 +1,5 @@
+window._env_ = {
+  APP_ID: "6c25cf276d7b449cad41dc095592b045",
+  TOKEN:
+    "007eJxTYEg9Y8I+V4yryWqnC8cn23XMAvWvXMsY3kziX/f+TrbutxwFBrNkI9PkNCNzsxTzJBMTy+TEFBPDlGQDS1NTS6MkAxPTiqcCGQ2BjAysJzkZGRkgEMTnYnDLTy4tVijKz89lYAAAT7YfDg==",
+};
